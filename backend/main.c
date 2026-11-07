@@ -11,7 +11,6 @@
 #include <netinet/in.h>
 #include <sqlite3.h>
 
-#define PORT 8080
 #define REQ_MAX 16384
 #define FIELD_MAX 256
 #define ADMIN_PIN "1234"
@@ -131,6 +130,12 @@ static void send_new_id(int fd) {
     send_json(fd, j);
 }
 
+static int is_admin(const char *q, const char *body) {
+    char pin[64];
+    get_param(q, body, "admin_pin", pin, sizeof pin);
+    return strcmp(pin, ADMIN_PIN) == 0;
+}
+
 static void add_person(int fd, const char *q, const char *body, int is_doc) {
     char name[FIELD_MAX], extra[FIELD_MAX];
     get_param(q, body, "name", name, sizeof name);
@@ -226,6 +231,84 @@ static void cancel_slot(int fd, const char *q, const char *body, int is_service)
     send_json(fd, "{\"success\":true}");
 }
 
+static void get_availability(int fd, const char *q, const char *body, int is_service) {
+    char rid[32], date[32];
+    get_param(q, body, is_service ? "service_id" : "doctor_id", rid, sizeof rid);
+    get_param(q, body, "date", date, sizeof date);
+    int resource_id = atoi(rid);
+    
+    Buf b; buf_init(&b);
+    buf_cat(&b, "{\"booked\":[", 11);
+    
+    if (resource_id > 0 && *date) {
+        sqlite3_stmt *st = prep(is_service ? 
+            "SELECT time FROM service_bookings WHERE service_id=? AND date=?" :
+            "SELECT time FROM appointments WHERE doctor_id=? AND date=?");
+        sqlite3_bind_int(st, 1, resource_id);
+        sqlite3_bind_text(st, 2, date, -1, SQLITE_TRANSIENT);
+        int count = 0;
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            if (count++) buf_cat(&b, ",", 1);
+            buf_cat(&b, "\"", 1);
+            json_escape(&b, (const char*)sqlite3_column_text(st, 0));
+            buf_cat(&b, "\"", 1);
+        }
+        sqlite3_finalize(st);
+    }
+    buf_cat(&b, "]}", 2);
+    send_json(fd, b.data);
+    buf_free(&b);
+}
+
+static void get_wards(int fd) {
+    sqlite3_stmt *st = prep("SELECT w.id, w.name, w.total, COUNT(a.id) as occupied, (w.total - COUNT(a.id)) as available FROM wards w LEFT JOIN admissions a ON a.ward_id = w.id GROUP BY w.id");
+    query_json(fd, st);
+}
+
+static void admit_patient(int fd, const char *q, const char *body) {
+    char wid[32], pid[32], date[32];
+    get_param(q, body, "ward_id", wid, sizeof wid);
+    get_param(q, body, "patient_id", pid, sizeof pid);
+    get_param(q, body, "date", date, sizeof date);
+    int ward_id = atoi(wid), patient_id = atoi(pid);
+    if (ward_id <= 0 || patient_id <= 0) return send_error(fd, 400, "Missing parameters.");
+
+    sqlite3_stmt *st = prep("INSERT INTO admissions(ward_id, patient_id, admitted_on) VALUES(?,?,?)");
+    sqlite3_bind_int(st, 1, ward_id);
+    sqlite3_bind_int(st, 2, patient_id);
+    sqlite3_bind_text(st, 3, date[0] ? date : "Today", -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(st) != SQLITE_DONE) { sqlite3_finalize(st); return send_error(fd, 500, "Admission failed."); }
+    sqlite3_finalize(st);
+    send_new_id(fd);
+}
+
+static void discharge_patient(int fd, const char *q, const char *body) {
+    char idstr[32];
+    get_param(q, body, "id", idstr, sizeof idstr);
+    int id = atoi(idstr);
+    if (id <= 0) return send_error(fd, 400, "Invalid ID.");
+    sqlite3_stmt *st = prep("DELETE FROM admissions WHERE id=?");
+    sqlite3_bind_int(st, 1, id);
+    sqlite3_step(st);
+    sqlite3_finalize(st);
+    send_json(fd, "{\"success\":true}");
+}
+
+static void get_dashboard(int fd) {
+    sqlite3_stmt *st = prep(
+        "SELECT "
+        "(SELECT COUNT(*) FROM appointments) as opd, "
+        "(SELECT COUNT(*) FROM service_bookings WHERE service_id=1) as xray, "
+        "(SELECT COUNT(*) FROM service_bookings WHERE service_id=2) as ct, "
+        "(SELECT COUNT(*) FROM service_bookings WHERE service_id=3) as mri, "
+        "(SELECT COUNT(*) FROM doctors) as doctors, "
+        "(SELECT COUNT(*) FROM patients) as patients, "
+        "(SELECT COUNT(*) FROM admissions) as admitted, "
+        "((SELECT SUM(total) FROM wards) - (SELECT COUNT(*) FROM admissions)) as beds_free"
+    );
+    query_json(fd, st);
+}
+
 static void serve_static(int fd, const char *path) {
     const char *fpath = (!strcmp(path, "/") || !*path) ? "index.html" : (path + 1);
     FILE *f = fopen(fpath, "rb");
@@ -242,12 +325,6 @@ static void serve_static(int fd, const char *path) {
     else if (strstr(fpath, ".js")) mime = "application/javascript";
     send_response(fd, 200, mime, data, sz);
     free(data);
-}
-
-static int is_admin(const char *q, const char *body) {
-    char pin[64];
-    get_param(q, body, "admin_pin", pin, sizeof pin);
-    return strcmp(pin, ADMIN_PIN) == 0;
 }
 
 static void route_api(int fd, int get, int post, int del, const char *p, const char *q, const char *body) {
@@ -271,6 +348,9 @@ static void route_api(int fd, int get, int post, int del, const char *p, const c
         else if (post) book_slot(fd, q, body, 0);
         else if (del) cancel_slot(fd, q, body, 0);
         else send_error(fd, 400, "Bad method.");
+    } else if (!strcmp(p, "availability")) {
+        if (get) get_availability(fd, q, body, 0);
+        else send_error(fd, 400, "Bad method.");
     } else if (!strcmp(p, "services")) {
         if (get) query_json(fd, prep("SELECT id, name FROM services ORDER BY id"));
         else send_error(fd, 400, "Bad method.");
@@ -278,6 +358,20 @@ static void route_api(int fd, int get, int post, int del, const char *p, const c
         if (get) query_json(fd, prep("SELECT b.id, s.name AS service, p.name AS patient, b.date, b.time FROM service_bookings b JOIN services s ON s.id=b.service_id JOIN patients p ON p.id=b.patient_id ORDER BY b.date, b.time"));
         else if (post) book_slot(fd, q, body, 1);
         else if (del) cancel_slot(fd, q, body, 1);
+        else send_error(fd, 400, "Bad method.");
+    } else if (!strcmp(p, "service-availability")) {
+        if (get) get_availability(fd, q, body, 1);
+        else send_error(fd, 400, "Bad method.");
+    } else if (!strcmp(p, "wards")) {
+        if (get) get_wards(fd);
+        else send_error(fd, 400, "Bad method.");
+    } else if (!strcmp(p, "admissions")) {
+        if (get) query_json(fd, prep("SELECT a.id, w.name as ward, p.name as patient, a.admitted_on FROM admissions a JOIN wards w ON w.id=a.ward_id JOIN patients p ON p.id=a.patient_id"));
+        else if (post) admit_patient(fd, q, body);
+        else if (del) discharge_patient(fd, q, body);
+        else send_error(fd, 400, "Bad method.");
+    } else if (!strcmp(p, "dashboard")) {
+        if (get) get_dashboard(fd);
         else send_error(fd, 400, "Bad method.");
     } else {
         send_error(fd, 404, "API route not found.");
@@ -315,21 +409,28 @@ static void init_db() {
     sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS appointments (id INTEGER PRIMARY KEY AUTOINCREMENT, doctor_id INT, patient_id INT, date TEXT, time TEXT);", 0, 0, 0);
     sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);", 0, 0, 0);
     sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS service_bookings (id INTEGER PRIMARY KEY AUTOINCREMENT, service_id INT, patient_id INT, date TEXT, time TEXT);", 0, 0, 0);
-    
+    sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS wards (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, total INT);", 0, 0, 0);
+    sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS admissions (id INTEGER PRIMARY KEY AUTOINCREMENT, ward_id INT, patient_id INT, admitted_on TEXT);", 0, 0, 0);
+
     sqlite3_exec(db, "INSERT OR IGNORE INTO services (id, name) VALUES (1, 'X-Ray'), (2, 'CT Scan'), (3, 'MRI');", 0, 0, 0);
+    sqlite3_exec(db, "INSERT OR IGNORE INTO wards (id, name, total) VALUES (1, 'General Ward', 10), (2, 'ICU', 4), (3, 'Pediatric Ward', 6);", 0, 0, 0);
 }
 
 int main() {
     signal(SIGPIPE, SIG_IGN);
     init_db();
+
+    char *port_env = getenv("PORT");
+    int port = port_env ? atoi(port_env) : 8080;
+
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
 
-    struct sockaddr_in addr = { .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(PORT) };
+    struct sockaddr_in addr = { .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(port) };
     bind(server_fd, (struct sockaddr *)&addr, sizeof addr);
     listen(server_fd, 10);
-    printf("AppointEase server running on port %d...\n", PORT);
+    printf("AppointEase server running on port %d...\n", port);
 
     while (1) {
         int client_fd = accept(server_fd, NULL, NULL);
