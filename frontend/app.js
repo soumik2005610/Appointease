@@ -104,19 +104,33 @@ document.querySelectorAll("#tabs button").forEach((b) => {
 });
 
 // Role Switcher Handler
+let currentAdminPin = "";
+
 $("role-select").addEventListener("change", (e) => {
     const role = e.target.value;
     const main = $("main-container");
     
     if (role === "admin") {
-        main.className = "role-admin";
-        showTab("dashboard");
+        const pin = prompt("Enter Hospital Admin Password / PIN:");
+        if (pin === "1234") { // Must match ADMIN_PIN in main.c
+            currentAdminPin = pin;
+            main.className = "role-admin";
+            showTab("dashboard");
+            showMessage("Logged in as Hospital Admin", "success");
+        } else {
+            alert("Incorrect Admin Password!");
+            e.target.value = "patient"; // Revert back to Patient Portal
+            main.className = "role-patient";
+            showTab("opd");
+        }
     } else {
+        currentAdminPin = "";
         main.className = "role-patient";
         showTab("opd");
     }
     reloadAll();
 });
+
 
 async function loadDoctors() {
     const doctors = await api("/api/doctors");
@@ -225,13 +239,15 @@ async function reloadAll() {
 async function removeItem(path, question, doneText) {
     if (!confirm(question)) return;
     try {
-        await api(path, "DELETE");
+        const separator = path.includes("?") ? "&" : "?";
+        await api(`${path}${separator}admin_pin=${encodeURIComponent(currentAdminPin)}`, "DELETE");
         showMessage(doneText, "success");
     } catch (err) {
         showMessage(err.message, "error");
     }
     await reloadAll();
 }
+
 
 function onSubmit(formId, path, doneText, resetAfter) {
     $(formId).addEventListener("submit", async (e) => {
