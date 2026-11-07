@@ -267,6 +267,25 @@ static void delete_person(int fd, const char *q, const char *body, int is_doctor
     sqlite3_finalize(st);
     send_ok(fd);
 }
+/* ---------- Generate and print appointment letter to Render logs ---------- */
+static void generate_appointment_letter(const char *doctor_or_service, const char *patient, const char *date, const char *time, int is_service) {
+    printf("\n======================================================\n");
+    printf("         APPOINTEASE APPOINTMENT CONFIRMATION         \n");
+    printf("======================================================\n");
+    printf(" Booking Type   : %s\n", is_service ? "Diagnostic Service" : "OPD Doctor Consult");
+    printf("------------------------------------------------------\n");
+    printf(" Patient Name   : %s\n", patient);
+    printf(" Resource/Doctor: %s\n", doctor_or_service);
+    printf(" Date & Time    : %s at %s\n", date, time);
+    printf("------------------------------------------------------\n");
+    printf(" MESSAGE TO PATIENT:\n");
+    printf(" Dear %s, your appointment for %s on %s at %s has been confirmed.\n", patient, doctor_or_service, date, time);
+    printf("\n MESSAGE TO %s:\n", is_service ? "DEPARTMENT" : "DOCTOR");
+    printf(" Notice: Patient %s is scheduled for %s at %s.\n", patient, date, time);
+    printf("======================================================\n\n");
+    fflush(stdout); /* Instantly pushes text to Render logs */
+}
+
 
 /* ---------- time-slot bookings ----------
  * is_service = 0 : OPD appointment (the resource is a doctor)
@@ -306,9 +325,33 @@ static void book_slot(int fd, const char *q, const char *body, int is_service) {
     sqlite3_bind_text(st, 4, time, -1, SQLITE_TRANSIENT);
     int rc = sqlite3_step(st);
     sqlite3_finalize(st);
-    if (rc != SQLITE_DONE) return send_error(fd, 400, "Selected doctor, service or patient does not exist.");
+        if (rc != SQLITE_DONE) return send_error(fd, 400, "Selected doctor, service or patient does not exist.");
+
+    /* --- PASTE THIS NEW BLOCK RIGHT HERE --- */
+    char rname[FIELD_MAX] = "Assigned Resource", pname[FIELD_MAX] = "Patient";
+    
+    char name_sql[256];
+    snprintf(name_sql, sizeof name_sql, "SELECT name FROM %s WHERE id=%d", is_service ? "services" : "doctors", resource_id);
+    sqlite3_stmt *st_name = prep(name_sql);
+    if (sqlite3_step(st_name) == SQLITE_ROW) {
+        strncpy(rname, (const char *)sqlite3_column_text(st_name, 0), sizeof(rname) - 1);
+    }
+    sqlite3_finalize(st_name);
+
+    snprintf(name_sql, sizeof name_sql, "SELECT name FROM patients WHERE id=%d", patient_id);
+    st_name = prep(name_sql);
+    if (sqlite3_step(st_name) == SQLITE_ROW) {
+        strncpy(pname, (const char *)sqlite3_column_text(st_name, 0), sizeof(pname) - 1);
+    }
+    sqlite3_finalize(st_name);
+
+    /* Print confirmation letter to Render output log */
+    generate_appointment_letter(rname, pname, date, time, is_service);
+    /* --------------------------------------- */
+
     send_new_id(fd);
 }
+
 
 static void cancel_slot(int fd, const char *q, const char *body, int is_service) {
     char idstr[32];
