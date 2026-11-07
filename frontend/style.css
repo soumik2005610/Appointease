@@ -108,3 +108,23 @@ th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
   .tab { grid-template-columns: 1fr; }
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
+/* Role-based display controls */
+.role-selector select {
+    background: #ffffff;
+    color: var(--primary);
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: none;
+}
+
+/* Hide admin-only sections when Patient mode is active */
+main.role-patient .admin-only {
+    display: none !important;
+}
+
+/* Make single card stretch full width when partner card is hidden */
+main.role-patient .card {
+    grid-column: 1 / -1;
+}
+
