@@ -1,18 +1,28 @@
 FROM debian:bookworm-slim
 
-# Install C compiler, make, and SQLite header dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends gcc make libc6-dev libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
 
+# Install compiler toolchain and sqlite3 development headers
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    make \
+    libsqlite3-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# Set working directory inside container
 WORKDIR /app
 
-# Copy all project files into /app
+# Copy repository files into container
 COPY . .
 
-# Compile the C backend inside the backend folder
-RUN cd backend && make
+# Compile backend binary inside the backend folder
+RUN cd backend && make clean && make
 
-# Move compiled executable and frontend assets into the root /app folder
-RUN cp backend/appointease . && cp frontend/* .
+# Copy backend binary and static assets into app root
+RUN cp backend/appointease . && cp -r frontend/* .
 
-# Start the application from the root folder /app
+EXPOSE 8080
+
 CMD ["./appointease"]
