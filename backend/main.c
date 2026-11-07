@@ -23,6 +23,14 @@
 #define PORT 8080
 #define REQ_MAX 16384
 #define FIELD_MAX 256
+#define ADMIN_PIN "1234"  /* Set your hospital admin passcode here */
+
+static int is_admin(const char *q, const char *body) {
+    char pin[64];
+    get_param(q, body, "admin_pin", pin, sizeof pin);
+    return strcmp(pin, ADMIN_PIN) == 0;
+}
+
 
 static sqlite3 *db;
 
@@ -484,7 +492,15 @@ static void serve_static(int fd, const char *path) {
 
 /* ---------- request routing ---------- */
 static void route_api(int fd, int get, int post, int del, const char *p, const char *q, const char *body) {
+    /* Reject administrative actions if PIN is missing or invalid */
+    if (del || (post && !strcmp(p, "doctors"))) {
+        if (!is_admin(q, body)) {
+            return send_error(fd, 401, "Unauthorized: Valid Admin PIN required.");
+        }
+    }
+
     if (!strcmp(p, "doctors")) {
+
         if (get) query_json(fd, prep("SELECT id, name, specialization FROM doctors ORDER BY name"));
         else if (post) add_person(fd, q, body, 1);
         else if (del) delete_person(fd, q, body, 1);
