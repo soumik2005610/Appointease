@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AppointEase</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>AppointEase</h1>
+    <p>Hospital Appointment Management System</p>
+  </header>
+
+  <div id="message" role="status"></div>
+
+  <main>
+    <section class="card">
+      <h2>Add Doctor</h2>
+      <form id="doctor-form">
+        <input name="name" placeholder="Doctor name" required>
+        <input name="specialization" placeholder="Specialization (e.g. Cardiology)">
+        <button type="submit">Add doctor</button>
+      </form>
+      <ul id="doctor-list" class="plain-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Add Patient</h2>
+      <form id="patient-form">
+        <input name="name" placeholder="Patient name" required>
+        <input name="phone" placeholder="Phone number">
+        <button type="submit">Add patient</button>
+      </form>
+      <ul id="patient-list" class="plain-list"></ul>
+    </section>
+
+    <section class="card wide">
+      <h2>Book Appointment</h2>
+      <form id="book-form">
+        <select name="doctor_id" id="book-doctor" required></select>
+        <select name="patient_id" id="book-patient" required></select>
+        <input type="date" name="date" id="book-date" required>
+        <select name="time" id="book-time" required></select>
+        <button type="submit">Book</button>
+      </form>
+      <p class="hint">Booked slots are greyed out and can't be selected.</p>
+    </section>
+
+    <section class="card wide">
+      <h2>Appointment Schedule</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Time</th><th>Doctor</th><th>Patient</th><th></th></tr>
+          </thead>
+          <tbody id="schedule"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
