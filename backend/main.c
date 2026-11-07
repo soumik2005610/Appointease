@@ -452,12 +452,15 @@ int main(void) {
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(PORT);
+        const char *env_port = getenv("PORT");
+    int port = env_port ? atoi(env_port) : PORT;
+    addr.sin_port = htons(port);
+
     if (bind(srv, (struct sockaddr *)&addr, sizeof addr) < 0 || listen(srv, 16) < 0) {
         perror("bind/listen");
         return 1;
     }
-    printf("AppointEase running at http://localhost:%d  (Ctrl+C to stop)\n", PORT);
+    printf("AppointEase running at http://localhost:%d  (Ctrl+C to stop)\n", port);
 
     for (;;) {
         int fd = accept(srv, NULL, NULL);
