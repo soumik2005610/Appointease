@@ -1,4 +1,4 @@
-# Stage 1: Build the C application
+# Stage 1: Build the C binary
 FROM gcc:13 AS builder
 
 # Install SQLite development headers
@@ -8,14 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy project files
+# Copy the entire repository
 COPY . .
 
-# Compile main.c into executable using Makefile or direct GCC command
-# (Handles source files located in root or inside backend/ frontend/ directories)
-RUN if [ -f Makefile ]; then make; else gcc -Wall -Wextra -O2 backend/main.c -o appointease -lsqlite3; fi
+# Build the C executable from backend directory
+RUN cd backend && make
 
-# Stage 2: Runtime image (minimal footprint)
+# Stage 2: Minimal runtime image
 FROM debian:bookworm-slim
 
 # Install runtime sqlite3 library
@@ -26,20 +25,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Create backend & frontend structural folders expected by serve_static()
-RUN mkdir -p backend frontend data
+# Recreate directory structure
+RUN mkdir -p backend frontend
 
-# Copy executable to backend directory so relative paths work
-COPY --from=builder /app/appointease /app/backend/appointease
+# Copy compiled executable and frontend files
+COPY --from=builder /app/backend/appointease /app/backend/appointease
+COPY frontend/ /app/frontend/
 
-# Copy frontend assets to frontend directory
-COPY index.html style.css app.js* app\ 2.js* /app/frontend/
-RUN if [ -f /app/frontend/app\ 2.js ]; then mv /app/frontend/app\ 2.js /app/frontend/app.js; fi
-
-# Set runtime working directory to backend/ (main.c expects to run from backend/)
+# Set working directory to backend (main.c looks for static files at ../frontend/)
 WORKDIR /app/backend
 
-# Render sets PORT env variable automatically (defaults to 8080)
 ENV PORT=8080
 EXPOSE 8080
 
