@@ -4,7 +4,7 @@ LDFLAGS = -lsqlite3
 
 all: appointease
 
-appointease: backend/main.c
+appointease:main.c
 	$(CC) $(CFLAGS) backend/main.c -o appointease $(LDFLAGS)
 
 clean:
