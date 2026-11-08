@@ -11,7 +11,6 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-.role-hidden { display: none !important; }
 
 body {
   margin: 0;
@@ -23,9 +22,6 @@ body {
 header { background: var(--primary); color: #fff; padding: 20px 24px 14px; }
 header h1 { margin: 0; font-size: 1.6rem; }
 header p  { margin: 4px 0 0; opacity: 0.9; }
-.header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-#userbox { display: flex; align-items: center; gap: 10px; }
-#userbox button { background: #fff; color: var(--primary); font-weight: 600; padding: 6px 12px; }
 
 /* tabs */
 nav {
@@ -70,7 +66,6 @@ input, select { flex: 1 1 160px; background: #fff; }
 button { background: var(--primary); color: #fff; border: none; cursor: pointer; }
 button:hover { filter: brightness(1.1); }
 button.danger { background: var(--danger); padding: 6px 10px; }
-button.ok { background: var(--ok); padding: 6px 10px; }
 
 .plain-list { list-style: none; margin: 12px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
 .plain-list.tall { max-height: 420px; }
@@ -79,23 +74,11 @@ button.ok { background: var(--ok); padding: 6px 10px; }
 .plain-list li button { margin-left: auto; padding: 3px 8px; font-size: 0.8rem; }
 
 .hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
-.hint a { color: var(--primary); }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
-td button { margin-right: 6px; }
-
-/* login */
-#login-screen { display: flex; justify-content: center; padding: 28px 16px; }
-.login-card { width: 100%; max-width: 420px; }
-.role-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
-.role-tabs button { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-.role-tabs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-.login-card form input { flex: 1 1 100%; }
-#register-box { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
-#register-form { margin-top: 10px; }
 
 /* dashboard */
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
@@ -125,3 +108,23 @@ td button { margin-right: 6px; }
   .tab { grid-template-columns: 1fr; }
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
+/* Role-based display controls */
+.role-selector select {
+    background: #ffffff;
+    color: var(--primary);
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: none;
+}
+
+/* Hide admin-only sections when Patient mode is active */
+main.role-patient .admin-only {
+    display: none !important;
+}
+
+/* Make single card stretch full width when partner card is hidden */
+main.role-patient .card {
+    grid-column: 1 / -1;
+}
+
