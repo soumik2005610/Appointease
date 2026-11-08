@@ -1,127 +1,390 @@
-:root {
-  --bg: #f4f7fa;
-  --card: #ffffff;
-  --text: #1c2b36;
-  --muted: #6b7c88;
-  --primary: #0a7ea4;
-  --danger: #c0392b;
-  --ok: #1e8449;
-  --border: #dde4ea;
+const API_BASE = '/api';
+const SLOTS = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00"];
+let currentRole = 'patient';
+let adminPin = '';
+
+document.addEventListener('DOMContentLoaded', () => {
+    switchPortalRole('patient');
+    initDateInputs();
+    loadDashboard();
+});
+
+function initDateInputs() {
+    const today = new Date().toISOString().split('T')[0];
+    ['opd-date', 'svc-date', 'admit-date'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = today;
+    });
 }
 
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
-.role-hidden { display: none !important; }
-
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
+function showAlert(msg, isError = false) {
+    const el = document.getElementById('alert-banner');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = `alert-banner ${isError ? 'error' : 'success'}`;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
-header { background: var(--primary); color: #fff; padding: 20px 24px 14px; }
-header h1 { margin: 0; font-size: 1.6rem; }
-header p  { margin: 4px 0 0; opacity: 0.9; }
-.header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-#userbox { display: flex; align-items: center; gap: 10px; }
-#userbox button { background: #fff; color: var(--primary); font-weight: 600; padding: 6px 12px; }
-
-/* tabs */
-nav {
-  background: var(--primary);
-  display: flex;
-  gap: 4px;
-  padding: 0 16px;
-  overflow-x: auto;
+function switchPortalRole(role) {
+    if (role === 'hospital') {
+        const enteredPin = prompt("Enter Hospital Admin PIN (Default: 1234):");
+        if (enteredPin === "1234") {
+            currentRole = 'hospital';
+            adminPin = "1234";
+            document.body.classList.add('role-admin');
+            showAlert("Switched to Hospital Admin Mode.");
+        } else {
+            alert("Incorrect Admin PIN!");
+            document.getElementById('portal-role').value = 'patient';
+            return;
+        }
+    } else {
+        currentRole = 'patient';
+        adminPin = '';
+        document.body.classList.remove('role-admin');
+        showAlert("Switched to Patient View Mode.");
+    }
+    switchTab('dashboard');
 }
-nav button {
-  background: transparent;
-  color: #d6eef7;
-  border: none;
-  border-radius: 8px 8px 0 0;
-  padding: 10px 16px;
-  white-space: nowrap;
+
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+    const activeBtn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    const targetTab = document.getElementById(`tab-${tabId}`);
+    if (targetTab) targetTab.classList.add('active');
+
+    if (tabId === 'dashboard') loadDashboard();
+    if (tabId === 'opd') loadOPDTab();
+    if (tabId === 'services') loadServicesTab();
+    if (tabId === 'wards') loadWardsTab();
+    if (tabId === 'doctors') loadDoctorsTab();
+    if (tabId === 'patients') loadPatientsTab();
 }
-nav button.active { background: var(--bg); color: var(--primary); font-weight: 600; }
 
-main { max-width: 1000px; margin: 20px auto; padding: 0 16px 40px; }
-.tab { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+async function apiFetch(endpoint, method = 'GET', body = null) {
+    try {
+        let url = `${API_BASE}/${endpoint}`;
+        const headers = {};
+        let bodyData = null;
 
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
+        if (body) {
+            if (adminPin) body.admin_pin = adminPin;
+            bodyData = new URLSearchParams(body).toString();
+            if (method === 'GET') {
+                url += `?${bodyData}`;
+                bodyData = null;
+            } else {
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            }
+        } else if (adminPin && (method === 'DELETE' || method === 'POST')) {
+            bodyData = `admin_pin=${encodeURIComponent(adminPin)}`;
+            headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
+
+        const res = await fetch(url, { method, headers, body: bodyData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server request failed');
+        return data;
+    } catch (err) {
+        showAlert(err.message, true);
+        return null;
+    }
 }
-.card.wide { grid-column: 1 / -1; }
-.card h2 { margin: 0 0 12px; font-size: 1.1rem; }
 
-form { display: flex; flex-wrap: wrap; gap: 8px; }
-
-input, select, button {
-  font: inherit;
-  padding: 9px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+async function loadDashboard() {
+    const data = await apiFetch('dashboard');
+    if (!data || !data.length) return;
+    const d = data[0];
+    document.getElementById('dash-opd').textContent = d.opd || 0;
+    document.getElementById('dash-xray').textContent = d.xray || 0;
+    document.getElementById('dash-ct').textContent = d.ct || 0;
+    document.getElementById('dash-mri').textContent = d.mri || 0;
+    document.getElementById('dash-docs').textContent = d.doctors || 0;
+    document.getElementById('dash-pts').textContent = d.patients || 0;
+    document.getElementById('dash-admitted').textContent = d.admitted || 0;
+    document.getElementById('dash-beds').textContent = d.beds_free || 0;
 }
-input, select { flex: 1 1 160px; background: #fff; }
 
-button { background: var(--primary); color: #fff; border: none; cursor: pointer; }
-button:hover { filter: brightness(1.1); }
-button.danger { background: var(--danger); padding: 6px 10px; }
-button.ok { background: var(--ok); padding: 6px 10px; }
-
-.plain-list { list-style: none; margin: 12px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
-.plain-list.tall { max-height: 420px; }
-.plain-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border); }
-.plain-list small { color: var(--muted); }
-.plain-list li button { margin-left: auto; padding: 3px 8px; font-size: 0.8rem; }
-
-.hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
-.hint a { color: var(--primary); }
-
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
-td button { margin-right: 6px; }
-
-/* login */
-#login-screen { display: flex; justify-content: center; padding: 28px 16px; }
-.login-card { width: 100%; max-width: 420px; }
-.role-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
-.role-tabs button { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-.role-tabs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-.login-card form input { flex: 1 1 100%; }
-#register-box { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
-#register-form { margin-top: 10px; }
-
-/* dashboard */
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.stat { background: var(--bg); border-radius: 8px; padding: 12px; text-align: center; }
-.stat b { display: block; font-size: 1.7rem; color: var(--primary); }
-.stat span { color: var(--muted); font-size: 0.85rem; }
-
-/* wards */
-.ward { margin-bottom: 12px; }
-.ward span { float: right; color: var(--muted); font-size: 0.9rem; }
-.bar { background: var(--border); border-radius: 6px; height: 10px; margin-top: 4px; overflow: hidden; }
-.bar div { background: var(--ok); height: 100%; }
-.bar div.full { background: var(--danger); }
-.bar div.warn { background: #e67e22; }
-
-#message {
-  max-width: 1000px;
-  margin: 12px auto 0;
-  padding: 0 16px;
-  min-height: 1.4em;
-  font-weight: 600;
+async function loadOPDTab() {
+    const doctors = await apiFetch('doctors');
+    const patients = await apiFetch('patients');
+    
+    populateSelect('opd-doctor', doctors, 'id', 'name', 'Select Doctor');
+    populateSelect('opd-patient', patients, 'id', 'name', 'Select Patient');
+    
+    loadDoctorSlotAvailability();
+    loadOPDAppointments();
 }
-#message.error { color: var(--danger); }
-#message.success { color: var(--ok); }
 
-@media (max-width: 700px) {
-  .tab { grid-template-columns: 1fr; }
-  .stats { grid-template-columns: repeat(2, 1fr); }
+async function loadDoctorSlotAvailability() {
+    const docId = document.getElementById('opd-doctor').value;
+    const date = document.getElementById('opd-date').value;
+    const select = document.getElementById('opd-time');
+    if (!select) return;
+    select.innerHTML = '';
+
+    if (!docId || !date) return;
+    const res = await apiFetch('availability', 'GET', { doctor_id: docId, date });
+    const booked = res ? res.booked : [];
+
+    SLOTS.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = booked.includes(s) ? `${s} (Booked)` : s;
+        if (booked.includes(s)) opt.disabled = true;
+        select.appendChild(opt);
+    });
+}
+
+async function handleBookOPD(e) {
+    e.preventDefault();
+    const res = await apiFetch('appointments', 'POST', {
+        doctor_id: document.getElementById('opd-doctor').value,
+        patient_id: document.getElementById('opd-patient').value,
+        date: document.getElementById('opd-date').value,
+        time: document.getElementById('opd-time').value
+    });
+    if (res) {
+        showAlert("OPD Appointment Booked Successfully!");
+        loadOPDTab();
+    }
+}
+
+async function loadOPDAppointments() {
+    const list = await apiFetch('appointments');
+    const tbody = document.getElementById('table-opd');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (list || []).forEach(row => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${row.date}</td>
+                <td>${row.time}</td>
+                <td>${row.doctor}</td>
+                <td>${row.patient}</td>
+                <td class="admin-only"><button class="btn-danger" onclick="cancelAppointment(${row.id})">Cancel</button></td>
+            </tr>`;
+    });
+}
+
+async function cancelAppointment(id) {
+    if (confirm("Cancel this appointment?")) {
+        const res = await apiFetch('appointments', 'DELETE', { id });
+        if (res) { showAlert("Appointment cancelled"); loadOPDAppointments(); }
+    }
+}
+
+async function loadServicesTab() {
+    const services = await apiFetch('services');
+    const patients = await apiFetch('patients');
+    
+    populateSelect('svc-service', services, 'id', 'name', 'Select Service');
+    populateSelect('svc-patient', patients, 'id', 'name', 'Select Patient');
+    
+    loadServiceSlotAvailability();
+    loadServiceBookings();
+}
+
+async function loadServiceSlotAvailability() {
+    const svcId = document.getElementById('svc-service').value;
+    const date = document.getElementById('svc-date').value;
+    const select = document.getElementById('svc-time');
+    if (!select) return;
+    select.innerHTML = '';
+
+    if (!svcId || !date) return;
+    const res = await apiFetch('service-availability', 'GET', { service_id: svcId, date });
+    const booked = res ? res.booked : [];
+
+    SLOTS.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = booked.includes(s) ? `${s} (Booked)` : s;
+        if (booked.includes(s)) opt.disabled = true;
+        select.appendChild(opt);
+    });
+}
+
+async function handleBookService(e) {
+    e.preventDefault();
+    const res = await apiFetch('service-bookings', 'POST', {
+        service_id: document.getElementById('svc-service').value,
+        patient_id: document.getElementById('svc-patient').value,
+        date: document.getElementById('svc-date').value,
+        time: document.getElementById('svc-time').value
+    });
+    if (res) {
+        showAlert("Service Slot Booked!");
+        loadServicesTab();
+    }
+}
+
+async function loadServiceBookings() {
+    const list = await apiFetch('service-bookings');
+    const tbody = document.getElementById('table-services');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (list || []).forEach(row => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${row.date}</td>
+                <td>${row.time}</td>
+                <td>${row.service}</td>
+                <td>${row.patient}</td>
+                <td class="admin-only"><button class="btn-danger" onclick="cancelServiceBooking(${row.id})">Cancel</button></td>
+            </tr>`;
+    });
+}
+
+async function cancelServiceBooking(id) {
+    if (confirm("Cancel this booking?")) {
+        const res = await apiFetch('service-bookings', 'DELETE', { id });
+        if (res) { showAlert("Booking cancelled"); loadServiceBookings(); }
+    }
+}
+
+async function loadWardsTab() {
+    const wards = await apiFetch('wards');
+    const patients = await apiFetch('patients');
+    const admissions = await apiFetch('admissions');
+
+    const tbodyWards = document.getElementById('table-wards');
+    if (tbodyWards) {
+        tbodyWards.innerHTML = '';
+        (wards || []).forEach(w => {
+            tbodyWards.innerHTML += `
+                <tr>
+                    <td>${w.name}</td>
+                    <td>${w.total}</td>
+                    <td>${w.occupied}</td>
+                    <td>${w.available}</td>
+                </tr>`;
+        });
+    }
+
+    populateSelect('admit-ward', wards, 'id', 'name', 'Select Ward');
+    populateSelect('admit-patient', patients, 'id', 'name', 'Select Patient');
+
+    const tbodyAdm = document.getElementById('table-admissions');
+    if (tbodyAdm) {
+        tbodyAdm.innerHTML = '';
+        (admissions || []).forEach(a => {
+            tbodyAdm.innerHTML += `
+                <tr>
+                    <td>${a.ward}</td>
+                    <td>${a.patient}</td>
+                    <td>${a.admitted_on}</td>
+                    <td class="admin-only"><button class="btn-danger" onclick="dischargePatient(${a.id})">Discharge</button></td>
+                </tr>`;
+        });
+    }
+}
+
+async function handleAdmitPatient(e) {
+    e.preventDefault();
+    const res = await apiFetch('admissions', 'POST', {
+        ward_id: document.getElementById('admit-ward').value,
+        patient_id: document.getElementById('admit-patient').value,
+        date: document.getElementById('admit-date').value
+    });
+    if (res) {
+        showAlert("Patient Admitted!");
+        loadWardsTab();
+    }
+}
+
+async function dischargePatient(id) {
+    if (confirm("Discharge patient?")) {
+        const res = await apiFetch('admissions', 'DELETE', { id });
+        if (res) { showAlert("Patient Discharged"); loadWardsTab(); }
+    }
+}
+
+async function loadDoctorsTab() {
+    const doctors = await apiFetch('doctors');
+    const tbody = document.getElementById('table-doctors');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (doctors || []).forEach(d => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${d.id}</td>
+                <td>${d.name}</td>
+                <td>${d.specialization}</td>
+                <td class="admin-only"><button class="btn-danger" onclick="deleteDoctor(${d.id})">Remove</button></td>
+            </tr>`;
+    });
+}
+
+async function handleAddDoctor(e) {
+    e.preventDefault();
+    const res = await apiFetch('doctors', 'POST', {
+        name: document.getElementById('doc-name').value,
+        specialization: document.getElementById('doc-spec').value
+    });
+    if (res) {
+        showAlert("Doctor Added!");
+        document.getElementById('form-add-doctor').reset();
+        loadDoctorsTab();
+    }
+}
+
+async function deleteDoctor(id) {
+    if (confirm("Delete doctor?")) {
+        const res = await apiFetch('doctors', 'DELETE', { id });
+        if (res) { showAlert("Doctor Removed"); loadDoctorsTab(); }
+    }
+}
+
+async function loadPatientsTab() {
+    const patients = await apiFetch('patients');
+    const tbody = document.getElementById('table-patients');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (patients || []).forEach(p => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${p.id}</td>
+                <td>${p.name}</td>
+                <td>${p.phone}</td>
+                <td class="admin-only"><button class="btn-danger" onclick="deletePatient(${p.id})">Remove</button></td>
+            </tr>`;
+    });
+}
+
+async function handleAddPatient(e) {
+    e.preventDefault();
+    const res = await apiFetch('patients', 'POST', {
+        name: document.getElementById('pat-name').value,
+        phone: document.getElementById('pat-phone').value
+    });
+    if (res) {
+        showAlert("Patient Registered!");
+        document.getElementById('form-add-patient').reset();
+        loadPatientsTab();
+    }
+}
+
+async function deletePatient(id) {
+    if (confirm("Delete patient?")) {
+        const res = await apiFetch('patients', 'DELETE', { id });
+        if (res) { showAlert("Patient Removed"); loadPatientsTab(); }
+    }
+}
+
+function populateSelect(elemId, items, valKey, textKey, placeholder) {
+    const select = document.getElementById(elemId);
+    if (!select) return;
+    select.innerHTML = `<option value="">${placeholder}</option>`;
+    (items || []).forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item[valKey];
+        opt.textContent = item[textKey];
+        select.appendChild(opt);
+    });
 }
