@@ -36,7 +36,7 @@ static void send_response(int fd, int code, const char *type, const char *data, 
     int hlen = snprintf(h, sizeof h,
         "HTTP/1.1 %d OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\nConnection: close\r\n\r\n",
         code, type, len);
-    send(fd, h, (size_t)hlen, 0);
+    send(fd, h, hlen, 0);
     if (data && len) send(fd, data, len, 0);
 }
 
@@ -64,7 +64,7 @@ static void get_param(const char *q, const char *body, const char *key, char *ou
             if (len >= max) len = max - 1;
             size_t o = 0;
             for (size_t i = 0; i < len; i++) {
-                if (p[i] == '%' && i + 2 < len && isxdigit((unsigned char)p[i+1]) && isxdigit((unsigned char)p[i+2])) {
+                if (p[i] == '%' && i + 2 < len && isxdigit(p[i+1]) && isxdigit(p[i+2])) {
                     char hex[3] = { p[i+1], p[i+2], 0 };
                     out[o++] = (char)strtol(hex, NULL, 16);
                     i += 2;
@@ -256,7 +256,7 @@ static void get_availability(int fd, const char *q, const char *body, int is_ser
         sqlite3_finalize(st);
     }
     buf_cat(&b, "]}", 2);
-    send_json(fd, b.data ? b.data : "{\"booked\":[]}");
+    send_json(fd, b.data);
     buf_free(&b);
 }
 
@@ -316,15 +316,14 @@ static void serve_static(int fd, const char *path) {
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
-    char *data = malloc((size_t)sz);
-    if (!data) { fclose(f); return send_error(fd, 500, "Out of memory"); }
-    fread(data, 1, (size_t)sz, f);
+    char *data = malloc(sz);
+    fread(data, 1, sz, f);
     fclose(f);
     const char *mime = "text/plain";
     if (strstr(fpath, ".html")) mime = "text/html";
     else if (strstr(fpath, ".css")) mime = "text/css";
     else if (strstr(fpath, ".js")) mime = "application/javascript";
-    send_response(fd, 200, mime, data, (size_t)sz);
+    send_response(fd, 200, mime, data, sz);
     free(data);
 }
 
@@ -421,19 +420,17 @@ int main() {
     signal(SIGPIPE, SIG_IGN);
     init_db();
 
-    /* Crucial Render configuration: Dynamic PORT binding */
     char *port_env = getenv("PORT");
     int port = port_env ? atoi(port_env) : 8080;
 
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof opt);
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
 
     struct sockaddr_in addr = { .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(port) };
     bind(server_fd, (struct sockaddr *)&addr, sizeof addr);
     listen(server_fd, 10);
-    printf("AppointEase server running on Render port %d...\n", port);
-    fflush(stdout);
+    printf("AppointEase server running on port %d...\n", port);
 
     while (1) {
         int client_fd = accept(server_fd, NULL, NULL);
