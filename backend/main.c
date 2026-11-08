@@ -5,19 +5,10 @@
 #include <stdarg.h>
 #include <ctype.h>
 #include <signal.h>
-
-#ifdef _WIN32
-  #include <winsock2.h>
-  #include <ws2tcpip.h>
-  #pragma comment(lib, "ws2_32.lib")
-  #define close(s) closesocket(s)
-#else
-  #include <sys/socket.h>
-  #include <sys/time.h>
-  #include <netinet/in.h>
-  #include <unistd.h>
-#endif
-
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <netinet/in.h>
 #include <sqlite3.h>
 
 #define REQ_MAX 16384
@@ -45,8 +36,8 @@ static void send_response(int fd, int code, const char *type, const char *data, 
     int hlen = snprintf(h, sizeof h,
         "HTTP/1.1 %d OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\nConnection: close\r\n\r\n",
         code, type, len);
-    send(fd, h, (int)hlen, 0);
-    if (data && len) send(fd, data, (int)len, 0);
+    send(fd, h, (size_t)hlen, 0);
+    if (data && len) send(fd, data, len, 0);
 }
 
 static void send_json(int fd, const char *json) {
@@ -325,15 +316,15 @@ static void serve_static(int fd, const char *path) {
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
-    char *data = malloc(sz);
+    char *data = malloc((size_t)sz);
     if (!data) { fclose(f); return send_error(fd, 500, "Out of memory"); }
-    fread(data, 1, sz, f);
+    fread(data, 1, (size_t)sz, f);
     fclose(f);
     const char *mime = "text/plain";
     if (strstr(fpath, ".html")) mime = "text/html";
     else if (strstr(fpath, ".css")) mime = "text/css";
     else if (strstr(fpath, ".js")) mime = "application/javascript";
-    send_response(fd, 200, mime, data, sz);
+    send_response(fd, 200, mime, data, (size_t)sz);
     free(data);
 }
 
@@ -427,15 +418,10 @@ static void init_db() {
 }
 
 int main() {
-#ifdef _WIN32
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#else
     signal(SIGPIPE, SIG_IGN);
-#endif
-
     init_db();
 
+    /* Crucial Render configuration: Dynamic PORT binding */
     char *port_env = getenv("PORT");
     int port = port_env ? atoi(port_env) : 8080;
 
@@ -446,15 +432,12 @@ int main() {
     struct sockaddr_in addr = { .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(port) };
     bind(server_fd, (struct sockaddr *)&addr, sizeof addr);
     listen(server_fd, 10);
-    printf("AppointEase server running on port %d...\n", port);
+    printf("AppointEase server running on Render port %d...\n", port);
+    fflush(stdout);
 
     while (1) {
         int client_fd = accept(server_fd, NULL, NULL);
         if (client_fd >= 0) handle_client(client_fd);
     }
-
-#ifdef _WIN32
-    WSACleanup();
-#endif
     return 0;
 }
