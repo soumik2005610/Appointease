@@ -833,7 +833,7 @@ static void dashboard(int fd, const char *q) {
     query_json(fd, st);
 }
 
-/* ---------- static files (only these three) ---------- */
+/* ---------- static files ---------- */
 static void serve_static(int fd, const char *path) {
     const char *file = NULL, *type = "text/plain";
     if (!strcmp(path, "/") || !strcmp(path, "/index.html")) { file = "../frontend/index.html"; type = "text/html; charset=utf-8"; }
@@ -842,7 +842,17 @@ static void serve_static(int fd, const char *path) {
     if (!file) return send_error(fd, 404, "Not found.");
 
     FILE *f = fopen(file, "rb");
+
+    /* Fallback lookup: try direct relative paths if executed from root directory instead of backend/ */
+    if (!f) {
+        if (!strcmp(path, "/") || !strcmp(path, "/index.html")) file = "frontend/index.html";
+        else if (!strcmp(path, "/style.css")) file = "frontend/style.css";
+        else if (!strcmp(path, "/app.js")) file = "frontend/app.js";
+        f = fopen(file, "rb");
+    }
+
     if (!f) return send_error(fd, 404, "Frontend file missing. Run the server from the backend/ folder.");
+
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     rewind(f);
