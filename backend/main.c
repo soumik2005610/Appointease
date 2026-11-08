@@ -5,10 +5,19 @@
 #include <stdarg.h>
 #include <ctype.h>
 #include <signal.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <netinet/in.h>
+
+#ifdef _WIN32
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  #pragma comment(lib, "ws2_32.lib")
+  #define close(s) closesocket(s)
+#else
+  #include <sys/socket.h>
+  #include <sys/time.h>
+  #include <netinet/in.h>
+  #include <unistd.h>
+#endif
+
 #include <sqlite3.h>
 
 #define REQ_MAX 16384
@@ -36,8 +45,8 @@ static void send_response(int fd, int code, const char *type, const char *data, 
     int hlen = snprintf(h, sizeof h,
         "HTTP/1.1 %d OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\nConnection: close\r\n\r\n",
         code, type, len);
-    send(fd, h, hlen, 0);
-    if (data && len) send(fd, data, len, 0);
+    send(fd, h, (int)hlen, 0);
+    if (data && len) send(fd, data, (int)len, 0);
 }
 
 static void send_json(int fd, const char *json) {
@@ -64,7 +73,7 @@ static void get_param(const char *q, const char *body, const char *key, char *ou
             if (len >= max) len = max - 1;
             size_t o = 0;
             for (size_t i = 0; i < len; i++) {
-                if (p[i] == '%' && i + 2 < len && isxdigit(p[i+1]) && isxdigit(p[i+2])) {
+                if (p[i] == '%' && i + 2 < len && isxdigit((unsigned char)p[i+1]) && isxdigit((unsigned char)p[i+2])) {
                     char hex[3] = { p[i+1], p[i+2], 0 };
                     out[o++] = (char)strtol(hex, NULL, 16);
                     i += 2;
@@ -256,7 +265,7 @@ static void get_availability(int fd, const char *q, const char *body, int is_ser
         sqlite3_finalize(st);
     }
     buf_cat(&b, "]}", 2);
-    send_json(fd, b.data);
+    send_json(fd, b.data ? b.data : "{\"booked\":[]}");
     buf_free(&b);
 }
 
@@ -317,6 +326,7 @@ static void serve_static(int fd, const char *path) {
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
     char *data = malloc(sz);
+    if (!data) { fclose(f); return send_error(fd, 500, "Out of memory"); }
     fread(data, 1, sz, f);
     fclose(f);
     const char *mime = "text/plain";
@@ -417,7 +427,13 @@ static void init_db() {
 }
 
 int main() {
+#ifdef _WIN32
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+#else
     signal(SIGPIPE, SIG_IGN);
+#endif
+
     init_db();
 
     char *port_env = getenv("PORT");
@@ -425,7 +441,7 @@ int main() {
 
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof opt);
 
     struct sockaddr_in addr = { .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(port) };
     bind(server_fd, (struct sockaddr *)&addr, sizeof addr);
@@ -436,5 +452,9 @@ int main() {
         int client_fd = accept(server_fd, NULL, NULL);
         if (client_fd >= 0) handle_client(client_fd);
     }
+
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return 0;
 }
