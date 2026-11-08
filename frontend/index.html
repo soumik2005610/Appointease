@@ -1,163 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AppointEase</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppointEase - Hospital Management</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <div>
+  <header class="app-header">
+    <div class="brand">
       <h1>AppointEase</h1>
       <p>Hospital Management: OPD, Diagnostics and Beds</p>
     </div>
-    <div class="role-selector">
-      <label for="role-select"><strong>Portal View:</strong></label>
-      <select id="role-select">
+    <div class="portal-selector">
+      <label for="portal-role">Portal View:</label>
+      <select id="portal-role" onchange="switchPortalRole(this.value)">
         <option value="patient" selected>Patient Portal</option>
-        <option value="admin">Hospital Admin</option>
+        <option value="hospital">Hospital Admin Portal</option>
       </select>
     </div>
-  </div>
-</header>
+  </header>
 
-<nav id="tabs">
-  <button data-tab="dashboard" class="admin-only">Dashboard</button>
-  <button data-tab="opd" class="active">OPD Booking</button>
-  <button data-tab="diagnostics">X-Ray / CT / MRI</button>
-  <button data-tab="beds">Beds & Admissions</button>
-  <button data-tab="patients" class="admin-only">Patients Directory</button>
-</nav>
+  <nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('opd')">OPD Booking</button>
+    <button class="tab-btn" onclick="switchTab('services')">X-Ray / CT / MRI</button>
+    <button class="tab-btn admin-only" onclick="switchTab('wards')">Beds & Wards</button>
+    <button class="tab-btn admin-only" onclick="switchTab('doctors')">Manage Doctors</button>
+    <button class="tab-btn" onclick="switchTab('patients')">Patients</button>
+  </nav>
 
-<div id="message" role="status"></div>
+  <div id="alert-banner" class="alert-banner hidden"></div>
 
-<main class="role-patient" id="main-container">
-<!-- ===== Dashboard (Admin Only) ===== -->
-<div id="tab-dashboard" class="tab" hidden>
-  <section class="card wide">
-    <h2>Today at a glance</h2>
-    <div class="stats">
-      <div class="stat"><b id="stat-opd">0</b><span>OPD today</span></div>
-      <div class="stat"><b id="stat-xray">0</b><span>X-Ray today</span></div>
-      <div class="stat"><b id="stat-ct">0</b><span>CT today</span></div>
-      <div class="stat"><b id="stat-mri">0</b><span>MRI today</span></div>
-      <div class="stat"><b id="stat-doctors">0</b><span>Doctors</span></div>
-      <div class="stat"><b id="stat-patients">0</b><span>Patients</span></div>
-      <div class="stat"><b id="stat-admitted">0</b><span>Admitted</span></div>
-      <div class="stat"><b id="stat-beds free">0</b><span>Beds free</span></div>
-    </div>
-  </section>
-  <section class="card wide">
-    <h2>Bed availability</h2>
-    <div id="dash-wards"></div>
-  </section>
-</div>
+  <main class="content-area">
+    <!-- DASHBOARD -->
+    <section id="tab-dashboard" class="tab-content active">
+      <h2>Hospital Status Overview</h2>
+      <div class="metrics-grid">
+        <div class="metric-card"><span class="val" id="dash-opd">0</span><span class="lbl">OPD Appointments</span></div>
+        <div class="metric-card"><span class="val" id="dash-xray">0</span><span class="lbl">X-Ray Bookings</span></div>
+        <div class="metric-card"><span class="val" id="dash-ct">0</span><span class="lbl">CT Scan Bookings</span></div>
+        <div class="metric-card"><span class="val" id="dash-mri">0</span><span class="lbl">MRI Bookings</span></div>
+        <div class="metric-card"><span class="val" id="dash-docs">0</span><span class="lbl">Active Doctors</span></div>
+        <div class="metric-card"><span class="val" id="dash-pts">0</span><span class="lbl">Registered Patients</span></div>
+        <div class="metric-card"><span class="val" id="dash-admitted">0</span><span class="lbl">Admitted Patients</span></div>
+        <div class="metric-card"><span class="val" id="dash-beds">0</span><span class="lbl">Available Beds</span></div>
+      </div>
+    </section>
 
-<!-- ===== OPD ===== -->
-<div id="tab-opd" class="tab">
-  <section class="card wide">
-    <h2>Book OPD Appointment</h2>
-    <form id="book-form">
-      <select name="doctor_id" id="book-doctor" required></select>
-      <select name="patient_id" id="book-patient" required></select>
-      <input type="date" name="date" id="book-date" required>
-      <select name="time" id="book-time" required></select>
-      <button type="submit">Book Appointment</button>
-    </form>
-    <p class="hint">Booked slots are greyed out and can't be selected.</p>
-  </section>
+    <!-- OPD BOOKING -->
+    <section id="tab-opd" class="tab-content">
+      <div class="form-card">
+        <h3>Book OPD Appointment</h3>
+        <form id="form-book-opd" onsubmit="handleBookOPD(event)">
+          <select id="opd-doctor" required onchange="loadDoctorSlotAvailability()"></select>
+          <select id="opd-patient" required></select>
+          <input type="date" id="opd-date" required onchange="loadDoctorSlotAvailability()">
+          <select id="opd-time" required></select>
+          <button type="submit" class="btn-primary">Book Appointment</button>
+        </form>
+        <p class="hint">Booked slots are greyed out and cannot be selected.</p>
+      </div>
 
-  <section class="card admin-only">
-    <h2>Manage Doctors</h2>
-    <form id="doctor-form">
-      <input name="name" placeholder="Doctor name" required>
-      <input name="specialization" placeholder="Department (e.g. Cardiology)">
-      <button type="submit">Add doctor</button>
-    </form>
-    <ul id="doctor-list" class="plain-list"></ul>
-  </section>
+      <div class="table-card">
+        <h3>OPD Schedule</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Time</th><th>Doctor</th><th>Patient</th><th class="admin-only">Action</th></tr></thead>
+          <tbody id="table-opd"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <section class="card wide">
-    <h2>OPD Schedule</h2>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Date</th><th>Time</th><th>Doctor</th><th>Patient</th><th class="admin-only">Action</th></tr></thead>
-        <tbody id="schedule"></tbody>
-      </table>
-    </div>
-  </section>
-</div>
+    <!-- SERVICES -->
+    <section id="tab-services" class="tab-content">
+      <div class="form-card">
+        <h3>Book Diagnostic Service</h3>
+        <form id="form-book-service" onsubmit="handleBookService(event)">
+          <select id="svc-service" required onchange="loadServiceSlotAvailability()"></select>
+          <select id="svc-patient" required></select>
+          <input type="date" id="svc-date" required onchange="loadServiceSlotAvailability()">
+          <select id="svc-time" required></select>
+          <button type="submit" class="btn-primary">Book Service Slot</button>
+        </form>
+      </div>
 
-<!-- ===== Diagnostics ===== -->
-<div id="tab-diagnostics" class="tab" hidden>
-  <section class="card wide">
-    <h2>Book X-Ray / CT Scan / MRI</h2>
-    <form id="diag-form">
-      <select name="service_id" id="diag-service" required></select>
-      <select name="patient_id" id="diag-patient" required></select>
-      <input type="date" name="date" id="diag-date" required>
-      <select name="time" id="diag-time" required></select>
-      <button type="submit">Book Slot</button>
-    </form>
-    <p class="hint">Each room can take one patient at a time.</p>
-  </section>
+      <div class="table-card">
+        <h3>Diagnostic Bookings Log</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Time</th><th>Service</th><th>Patient</th><th class="admin-only">Action</th></tr></thead>
+          <tbody id="table-services"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <section class="card wide">
-    <h2>Diagnostics Schedule</h2>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Date</th><th>Time</th><th>Service</th><th>Patient</th><th class="admin-only">Action</th></tr></thead>
-        <tbody id="diag-schedule"></tbody>
-      </table>
-    </div>
-  </section>
-</div>
+    <!-- BEDS & WARDS (ADMIN ONLY) -->
+    <section id="tab-wards" class="tab-content">
+      <div class="form-card admin-only">
+        <h3>Admit Patient to Ward</h3>
+        <form id="form-admit" onsubmit="handleAdmitPatient(event)">
+          <select id="admit-ward" required></select>
+          <select id="admit-patient" required></select>
+          <input type="date" id="admit-date" required>
+          <button type="submit" class="btn-primary">Admit Patient</button>
+        </form>
+      </div>
 
-<!-- ===== Beds ===== -->
-<div id="tab-beds" class="tab" hidden>
-  <section class="card">
-    <h2>Bed Availability</h2>
-    <div id="ward-list"></div>
-  </section>
+      <div class="table-card">
+        <h3>Ward Bed Occupancy</h3>
+        <table>
+          <thead><tr><th>Ward Name</th><th>Total Beds</th><th>Occupied</th><th>Available</th></tr></thead>
+          <tbody id="table-wards"></tbody>
+        </table>
+      </div>
 
-  <section class="card">
-    <h2>Request Bed / Admit Patient</h2>
-    <form id="admit-form">
-      <select name="ward_id" id="admit-ward" required></select>
-      <select name="patient_id" id="admit-patient" required></select>
-      <input type="date" name="date" id="admit-date" required>
-      <button type="submit">Submit Request</button>
-    </form>
-    <p class="hint">Full wards will refuse new admissions until a bed clears.</p>
-  </section>
+      <div class="table-card">
+        <h3>Active Admissions</h3>
+        <table>
+          <thead><tr><th>Ward</th><th>Patient Name</th><th>Admitted On</th><th class="admin-only">Action</th></tr></thead>
+          <tbody id="table-admissions"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <section class="card wide">
-    <h2>Admitted Patients Log</h2>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Ward</th><th>Patient</th><th>Admitted on</th><th class="admin-only">Action</th></tr></thead>
-        <tbody id="admissions"></tbody>
-      </table>
-    </div>
-  </section>
-</div>
+    <!-- DOCTORS (ADMIN ONLY) -->
+    <section id="tab-doctors" class="tab-content">
+      <div class="form-card admin-only">
+        <h3>Add New Doctor</h3>
+        <form id="form-add-doctor" onsubmit="handleAddDoctor(event)">
+          <input type="text" id="doc-name" placeholder="Doctor Full Name" required>
+          <input type="text" id="doc-spec" placeholder="Specialization (e.g. Cardiology)" required>
+          <button type="submit" class="btn-primary">Register Doctor</button>
+        </form>
+      </div>
 
-<!-- ===== Patients (Admin Only) ===== -->
-<div id="tab-patients" class="tab admin-only" hidden>
-  <section class="card wide">
-    <h2>Registered Patients Directory</h2>
-    <form id="patient-form">
-      <input name="name" placeholder="Patient name" required>
-      <input name="phone" placeholder="Phone number">
-      <button type="submit">Register Patient</button>
-    </form>
-    <ul id="patient-list" class="plain-list tall"></ul>
-  </section>
-</div>
+      <div class="table-card">
+        <h3>Doctor Roster</h3>
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Specialization</th><th class="admin-only">Action</th></tr></thead>
+          <tbody id="table-doctors"></tbody>
+        </table>
+      </div>
+    </section>
 
-</main>
-<script src="app.js"></script>
+    <!-- PATIENTS -->
+    <section id="tab-patients" class="tab-content">
+      <div class="form-card">
+        <h3>Register New Patient</h3>
+        <form id="form-add-patient" onsubmit="handleAddPatient(event)">
+          <input type="text" id="pat-name" placeholder="Patient Full Name" required>
+          <input type="tel" id="pat-phone" placeholder="Phone Number" required>
+          <button type="submit" class="btn-primary">Register Patient</button>
+        </form>
+      </div>
+
+      <div class="table-card">
+        <h3>Patient Directory</h3>
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Phone Number</th><th class="admin-only">Action</th></tr></thead>
+          <tbody id="table-patients"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
 </body>
 </html>
