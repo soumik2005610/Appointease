@@ -1,20 +1,22 @@
 # AppointEase
 
-Hospital management system with **separate logins for staff, doctors and patients**.
+Hospital management system with separate logins for staff, doctors and patients.
 
-**Tech:** C (backend server) · SQLite · HTML · CSS · JavaScript
+Tech: C (backend server) · SQLite · HTML · CSS · JavaScript
 
 ## What each person can do
+
 | Role | Can do |
-|---|---|
-| **Patient** | Register and log in, book their own OPD appointments and X-Ray / CT / MRI slots, see and cancel only their own bookings, view bed availability and their own admission |
-| **Doctor** | See only their own appointments (with patient name and phone), mark them completed, view admitted patients and bed availability |
-| **Staff** | Everything: dashboard, add and remove doctors (each gets a login), manage patients, book for anyone, admit and discharge |
+| --- | --- |
+| Patient | Register and log in, book their own OPD appointments and X-Ray / CT / MRI slots, see and cancel only their own bookings, view bed availability and their own admission |
+| Doctor | See only their own appointments (with patient name and phone), mark them completed, view admitted patients and bed availability |
+| Staff | Everything: dashboard, add and remove doctors (each gets a login), manage patients, book for anyone, admit and discharge |
 
 ## Demo logins (loaded automatically)
-| Login tab | Username | Password |
-|---|---|---|
-| Staff | `admin` | `admin123` (set your own with the `ADMIN_PASSWORD` environment variable) |
+
+| Role | Username | Password |
+| --- | --- | --- |
+| Staff | `admin` | `admin123` |
 | Doctor | `dr.rao`, `dr.das`, `dr.biswas` | `doctor123` |
 | Patient | `riya`, `amit` | `patient123` |
 
@@ -33,12 +35,9 @@ New patients can create their own account from the first screen.
 - `Dockerfile` - used to deploy on Render
 
 ## Run (Linux, WSL or GitHub Codespaces)
-    sudo apt install libsqlite3-dev
-    cd backend
-    rm -f appointease.db      # only needed if you ran an older version
-    make
-    ./appointease
-
-Then open http://localhost:8080
-
-Booking confirmations ("message to patient" and "message to doctor") are printed in the server console.
+```bash
+sudo apt install libsqlite3-dev
+cd backend
+rm -f appointease.db    # only needed if you ran an older version
+make
+./appointease
