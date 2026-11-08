@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 #include <signal.h>
+
 #ifdef _WIN32
   #include <winsock2.h>
   #include <ws2tcpip.h>
@@ -425,42 +426,6 @@ static void init_db() {
     sqlite3_exec(db, "INSERT OR IGNORE INTO wards (id, name, total) VALUES (1, 'General Ward', 10), (2, 'ICU', 4), (3, 'Pediatric Ward', 6);", 0, 0, 0);
 }
 
-int main() {
-#ifdef _WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        printf("Failed to initialize Winsock.\n");
-        return 1;
-    }
-#else
-    signal(SIGPIPE, SIG_IGN);
-#endif
-
-    init_db();
-
-    char *port_env = getenv("PORT");
-    int port = port_env ? atoi(port_env) : 8080;
-
-    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof opt);
-
-    struct sockaddr_in addr = { .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(port) };
-    bind(server_fd, (struct sockaddr *)&addr, sizeof addr);
-    listen(server_fd, 10);
-    printf("AppointEase server running on port %d...\n", port);
-    fflush(stdout);
-
-    while (1) {
-        int client_fd = accept(server_fd, NULL, NULL);
-        if (client_fd >= 0) handle_client(client_fd);
-    }
-
-#ifdef _WIN32
-    WSACleanup();
-#endif
-    return 0;
-}
 int main() {
 #ifdef _WIN32
     WSADATA wsaData;
