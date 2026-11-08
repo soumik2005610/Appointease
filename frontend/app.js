@@ -1,407 +1,127 @@
-// AppointEase frontend: login for staff, doctors and patients.
-// What each person can see and do is decided by the C server; this page only shows or hides things.
-
-// Time slots. Change these to suit the hospital.
-const OPD_SLOTS  = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00"];
-const DIAG_SLOTS = ["08:00", "09:00", "10:00", "11:00", "12:00", "14:00", "15:00"];
-
-// Which elements and API each booking form uses
-const OPD  = { resource: "book-doctor", date: "book-date", time: "book-time",
-               url: "/api/availability?doctor_id=", slots: OPD_SLOTS };
-const DIAG = { resource: "diag-service", date: "diag-date", time: "diag-time",
-               url: "/api/service-availability?service_id=", slots: DIAG_SLOTS };
-
-const $ = (id) => document.getElementById(id);
-const state = { role: "", name: "" };
-const can = (...roles) => roles.includes(state.role);
-
-// ---------- helpers ----------
-function el(tag, text, className) {
-  const e = document.createElement(tag);
-  if (text !== undefined && text !== null) e.textContent = text;   // textContent keeps names safe
-  if (className) e.className = className;
-  return e;
+:root {
+  --bg: #f4f7fa;
+  --card: #ffffff;
+  --text: #1c2b36;
+  --muted: #6b7c88;
+  --primary: #0a7ea4;
+  --danger: #c0392b;
+  --ok: #1e8449;
+  --border: #dde4ea;
 }
 
-function today() {   // local date as YYYY-MM-DD
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 10);
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.role-hidden { display: none !important; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
 }
 
-function showMessage(text, type) {
-  const box = $("message");
-  box.textContent = text;
-  box.className = type || "";
-  clearTimeout(showMessage.timer);
-  showMessage.timer = setTimeout(() => { box.textContent = ""; }, 4000);
+header { background: var(--primary); color: #fff; padding: 20px 24px 14px; }
+header h1 { margin: 0; font-size: 1.6rem; }
+header p  { margin: 4px 0 0; opacity: 0.9; }
+.header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+#userbox { display: flex; align-items: center; gap: 10px; }
+#userbox button { background: #fff; color: var(--primary); font-weight: 600; padding: 6px 12px; }
+
+/* tabs */
+nav {
+  background: var(--primary);
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  overflow-x: auto;
 }
-
-// Calls the backend. Throws an Error with the server's message on failure.
-async function api(path, method = "GET", data = null) {
-  const options = { method };
-  if (data) {
-    options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
-    options.body = new URLSearchParams(data).toString();
-  }
-  const res = await fetch(path, options);
-  const json = await res.json();
-  if (res.status === 401 && state.role) {   // the login expired
-    showLogin();
-    throw new Error("Please log in again.");
-  }
-  if (!res.ok) throw new Error(json.error || "Something went wrong.");
-  return json;
+nav button {
+  background: transparent;
+  color: #d6eef7;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  padding: 10px 16px;
+  white-space: nowrap;
 }
+nav button.active { background: var(--bg); color: var(--primary); font-weight: 600; }
 
-function formData(form) {
-  return Object.fromEntries(new FormData(form).entries());
+main { max-width: 1000px; margin: 20px auto; padding: 0 16px 40px; }
+.tab { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
 }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { margin: 0 0 12px; font-size: 1.1rem; }
 
-function option(value, label, disabled = false) {
-  const o = document.createElement("option");
-  o.value = value;
-  o.textContent = label;
-  o.disabled = disabled;
-  return o;
+form { display: flex; flex-wrap: wrap; gap: 8px; }
+
+input, select, button {
+  font: inherit;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
+input, select { flex: 1 1 160px; background: #fff; }
 
-// Fill a dropdown, keeping the current choice if it still exists
-function fillSelect(select, placeholder, items, labelFn) {
-  const old = select.value;
-  select.replaceChildren(option("", placeholder));
-  for (const item of items) select.appendChild(option(item.id, labelFn(item)));
-  if ([...select.options].some((o) => o.value === old)) select.value = old;
+button { background: var(--primary); color: #fff; border: none; cursor: pointer; }
+button:hover { filter: brightness(1.1); }
+button.danger { background: var(--danger); padding: 6px 10px; }
+button.ok { background: var(--ok); padding: 6px 10px; }
+
+.plain-list { list-style: none; margin: 12px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.plain-list.tall { max-height: 420px; }
+.plain-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.plain-list small { color: var(--muted); }
+.plain-list li button { margin-left: auto; padding: 3px 8px; font-size: 0.8rem; }
+
+.hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
+.hint a { color: var(--primary); }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+td button { margin-right: 6px; }
+
+/* login */
+#login-screen { display: flex; justify-content: center; padding: 28px 16px; }
+.login-card { width: 100%; max-width: 420px; }
+.role-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.role-tabs button { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+.role-tabs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.login-card form input { flex: 1 1 100%; }
+#register-box { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+#register-form { margin-top: 10px; }
+
+/* dashboard */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stat { background: var(--bg); border-radius: 8px; padding: 12px; text-align: center; }
+.stat b { display: block; font-size: 1.7rem; color: var(--primary); }
+.stat span { color: var(--muted); font-size: 0.85rem; }
+
+/* wards */
+.ward { margin-bottom: 12px; }
+.ward span { float: right; color: var(--muted); font-size: 0.9rem; }
+.bar { background: var(--border); border-radius: 6px; height: 10px; margin-top: 4px; overflow: hidden; }
+.bar div { background: var(--ok); height: 100%; }
+.bar div.full { background: var(--danger); }
+.bar div.warn { background: #e67e22; }
+
+#message {
+  max-width: 1000px;
+  margin: 12px auto 0;
+  padding: 0 16px;
+  min-height: 1.4em;
+  font-weight: 600;
 }
+#message.error { color: var(--danger); }
+#message.success { color: var(--ok); }
 
-function actionButton(label, onClick, cls = "danger") {
-  const b = el("button", label, cls);
-  b.type = "button";
-  b.addEventListener("click", onClick);
-  return b;
+@media (max-width: 700px) {
+  .tab { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
 }
-
-// Build a whole table from a list of objects.
-// actionsFor(row) returns the buttons for that row: [{ label, cls, run }]
-function renderTable(table, columns, rows, emptyText, actionsFor) {
-  const head = el("tr");
-  for (const c of columns) head.appendChild(el("th", c.label));
-  head.appendChild(el("th"));
-  const thead = el("thead");
-  thead.appendChild(head);
-
-  const tbody = el("tbody");
-  if (rows.length === 0) {
-    const tr = el("tr");
-    const td = el("td", emptyText);
-    td.colSpan = columns.length + 1;
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-  }
-  for (const row of rows) {
-    const tr = el("tr");
-    for (const c of columns) tr.appendChild(el("td", row[c.field]));
-    const last = el("td");
-    for (const a of actionsFor(row)) last.appendChild(actionButton(a.label, a.run, a.cls));
-    tr.appendChild(last);
-    tbody.appendChild(tr);
-  }
-  table.replaceChildren(thead, tbody);
-}
-
-// ---------- tabs and roles ----------
-function showTab(name) {
-  document.querySelectorAll(".tab").forEach((s) => { s.hidden = s.id !== "tab-" + name; });
-  document.querySelectorAll("#tabs button").forEach((b) => {
-    b.classList.toggle("active", b.dataset.tab === name);
-  });
-}
-document.querySelectorAll("#tabs button").forEach((b) => {
-  b.addEventListener("click", () => showTab(b.dataset.tab));
-});
-
-// Show only what this role may use (the server enforces the same rules)
-function applyRole() {
-  document.querySelectorAll("[data-roles]").forEach((e) => {
-    const hide = !e.dataset.roles.split(" ").includes(state.role);
-    e.classList.toggle("role-hidden", hide);
-    if (e.matches("select, input")) e.disabled = hide;   // hidden fields are not sent
-  });
-  document.querySelectorAll("#tabs button").forEach((b) => {
-    if (!b.dataset.base) b.dataset.base = b.textContent;
-    b.textContent = b.getAttribute("data-label-" + state.role) || b.dataset.base;
-  });
-  $("opd-title").textContent = can("admin") ? "OPD Schedule" : "My Appointments";
-  $("admit-title").textContent = can("patient") ? "My Admission" : "Admitted Patients Log";
-}
-
-function showLogin() {
-  state.role = "";
-  state.name = "";
-  $("app").hidden = true;
-  $("userbox").hidden = true;
-  $("login-screen").hidden = false;
-}
-
-function showApp(who) {
-  state.role = who.role;
-  state.name = who.name;
-  $("login-screen").hidden = true;
-  $("app").hidden = false;
-  $("userbox").hidden = false;
-  $("whoami").textContent = `${who.name} (${who.role === "admin" ? "staff" : who.role})`;
-  applyRole();
-  showTab(can("admin") ? "dashboard" : "opd");
-  reloadAll();
-}
-
-// ---------- loaders ----------
-async function loadDoctors() {
-  const doctors = await api("/api/doctors");
-  const list = $("doctor-list");
-  list.replaceChildren();
-  for (const d of doctors) {
-    const li = el("li", d.name + " ");
-    li.appendChild(el("small", d.specialization));
-    li.appendChild(actionButton("Delete", () =>
-      removeItem(`/api/doctors?id=${d.id}`, `Delete doctor ${d.name}?`, "Doctor removed.")));
-    list.appendChild(li);
-  }
-  fillSelect($("book-doctor"), "Select doctor", doctors,
-    (d) => (d.specialization ? `${d.name} (${d.specialization})` : d.name));
-}
-
-async function loadPatients() {   // staff only
-  const patients = await api("/api/patients");
-  const list = $("patient-list");
-  list.replaceChildren();
-  for (const p of patients) {
-    const li = el("li", p.name + " ");
-    li.appendChild(el("small", p.phone));
-    li.appendChild(actionButton("Delete", () =>
-      removeItem(`/api/patients?id=${p.id}`, `Delete patient ${p.name}?`, "Patient removed.")));
-    list.appendChild(li);
-  }
-  for (const id of ["book-patient", "diag-patient", "admit-patient"]) {
-    fillSelect($(id), "Select patient", patients, (p) => p.name);
-  }
-}
-
-async function loadServices() {
-  const services = await api("/api/services");
-  fillSelect($("diag-service"), "Select service", services, (s) => s.name);
-}
-
-async function loadSchedule() {
-  const rows = await api("/api/appointments");
-  const columns = [{ label: "Date", field: "date" }, { label: "Time", field: "time" },
-                   { label: "Doctor", field: "doctor" }];
-  if (!can("patient")) columns.push({ label: "Patient", field: "patient" }, { label: "Phone", field: "phone" });
-  columns.push({ label: "Status", field: "status" });
-
-  renderTable($("schedule"), columns, rows, "No appointments booked.", (r) => {
-    const actions = [];
-    if (r.status === "Booked") {
-      if (can("admin", "doctor")) {
-        actions.push({ label: "Mark completed", cls: "ok", run: () => completeAppointment(r) });
-      }
-      actions.push({ label: "Cancel", cls: "danger", run: () =>
-        removeItem(`/api/appointments?id=${r.id}`, "Cancel this appointment?", "Appointment cancelled.") });
-    }
-    return actions;
-  });
-}
-
-async function loadDiagSchedule() {
-  const rows = await api("/api/service-bookings");
-  const columns = [{ label: "Date", field: "date" }, { label: "Time", field: "time" },
-                   { label: "Service", field: "service" }];
-  if (!can("patient")) columns.push({ label: "Patient", field: "patient" });
-
-  renderTable($("diag-schedule"), columns, rows, "No diagnostic bookings.", (r) => [
-    { label: "Cancel", cls: "danger", run: () =>
-      removeItem(`/api/service-bookings?id=${r.id}`, "Cancel this booking?", "Booking cancelled.") },
-  ]);
-}
-
-async function loadWards() {
-  const wards = await api("/api/wards");
-  for (const box of [$("ward-list"), $("dash-wards")]) {
-    box.replaceChildren();
-    for (const w of wards) {
-      const row = el("div", null, "ward");
-      row.appendChild(el("strong", w.name));
-      row.appendChild(el("span", `${w.available} free of ${w.total}`));
-      const bar = el("div", null, "bar");
-      const fill = el("div", null, w.available === 0 ? "full" : (w.occupied / w.total >= 0.8 ? "warn" : ""));
-      fill.style.width = (w.total ? (w.occupied / w.total) * 100 : 0) + "%";
-      bar.appendChild(fill);
-      row.appendChild(bar);
-      box.appendChild(row);
-    }
-  }
-  fillSelect($("admit-ward"), "Select ward", wards, (w) => `${w.name} (${w.available} free)`);
-}
-
-async function loadAdmissions() {
-  const rows = await api("/api/admissions");
-  const columns = [{ label: "Ward", field: "ward" }, { label: "Patient", field: "patient" },
-                   { label: "Admitted on", field: "admitted_on" }];
-  renderTable($("admissions"), columns, rows, "No patients admitted.", (r) =>
-    can("admin")
-      ? [{ label: "Discharge", cls: "danger", run: () =>
-          removeItem(`/api/admissions?id=${r.id}`, `Discharge ${r.patient}?`, "Patient discharged.") }]
-      : []);
-}
-
-async function loadDashboard() {   // staff only
-  const [s] = await api("/api/dashboard?date=" + today());
-  for (const key of ["opd", "xray", "ct", "mri", "doctors", "patients", "admitted", "beds_free"]) {
-    $("stat-" + key).textContent = s[key];
-  }
-}
-
-// Grey out slots that are already booked
-async function refreshSlots(cfg) {
-  const resourceId = $(cfg.resource).value;
-  const date = $(cfg.date).value;
-  const select = $(cfg.time);
-  const old = select.value;
-  select.replaceChildren(option("", "Select time"));
-
-  let booked = [];
-  if (resourceId && date) {
-    try {
-      booked = (await api(`${cfg.url}${resourceId}&date=${date}`)).booked;
-    } catch (err) {
-      showMessage(err.message, "error");
-    }
-  }
-  for (const slot of cfg.slots) {
-    const taken = booked.includes(slot);
-    select.appendChild(option(slot, taken ? `${slot} (booked)` : slot, taken));
-  }
-  if (old && !booked.includes(old)) select.value = old;
-}
-
-// Load only the data this role is allowed to see
-async function reloadAll() {
-  if (!state.role) return;
-  try {
-    const jobs = [loadDoctors(), loadSchedule(), loadWards(), loadAdmissions()];
-    if (can("admin")) jobs.push(loadPatients(), loadDashboard());
-    if (can("admin", "patient")) jobs.push(loadServices(), loadDiagSchedule());
-    await Promise.all(jobs);
-    if (can("admin", "patient")) await Promise.all([refreshSlots(OPD), refreshSlots(DIAG)]);
-  } catch (err) {
-    if (state.role) showMessage(err.message || "Cannot reach the server.", "error");
-  }
-}
-
-// ---------- actions ----------
-async function removeItem(path, question, doneText) {
-  if (!confirm(question)) return;
-  try {
-    await api(path, "DELETE");
-    showMessage(doneText, "success");
-  } catch (err) {
-    showMessage(err.message, "error"); // e.g. "Cannot delete: they still have bookings..."
-  }
-  await reloadAll();
-}
-
-async function completeAppointment(r) {
-  try {
-    await api("/api/complete", "POST", { id: r.id });
-    showMessage("Appointment marked as completed.", "success");
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
-  await reloadAll();
-}
-
-function onSubmit(formId, path, doneText, resetAfter) {
-  $(formId).addEventListener("submit", async (e) => {
-    e.preventDefault();
-    try {
-      await api(path, "POST", formData(e.target));
-      if (resetAfter) e.target.reset();
-      showMessage(doneText, "success");
-    } catch (err) {
-      showMessage(err.message, "error"); // e.g. "This doctor is already booked at that time."
-    }
-    await reloadAll();
-  });
-}
-
-onSubmit("doctor-form", "/api/doctors", "Doctor added.", true);
-onSubmit("patient-form", "/api/patients", "Patient added.", true);
-onSubmit("book-form", "/api/appointments", "Appointment booked!", false);
-onSubmit("diag-form", "/api/service-bookings", "Booking confirmed!", false);
-onSubmit("admit-form", "/api/admissions", "Patient admitted.", false);
-
-for (const cfg of [OPD, DIAG]) {
-  $(cfg.resource).addEventListener("change", () => refreshSlots(cfg));
-  $(cfg.date).addEventListener("change", () => refreshSlots(cfg));
-}
-
-// ---------- login, register, logout ----------
-let loginRole = "patient";
-
-document.querySelectorAll("#login-roles button").forEach((b) => {
-  b.addEventListener("click", () => {
-    loginRole = b.dataset.login;
-    document.querySelectorAll("#login-roles button").forEach((x) => x.classList.toggle("active", x === b));
-    $("register-box").classList.toggle("role-hidden", loginRole !== "patient");
-    $("register-form").hidden = true;
-  });
-});
-
-$("show-register").addEventListener("click", (e) => {
-  e.preventDefault();
-  $("register-form").hidden = !$("register-form").hidden;
-});
-
-$("login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  try {
-    const who = await api("/api/login", "POST", { ...formData(e.target), role: loginRole });
-    e.target.reset();
-    showApp(who);
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
-});
-
-$("register-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  try {
-    const who = await api("/api/register", "POST", formData(e.target));
-    e.target.reset();
-    $("register-form").hidden = true;
-    showApp(who);
-    showMessage("Account created. Welcome!", "success");
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
-});
-
-$("logout-btn").addEventListener("click", async () => {
-  try { await api("/api/logout", "POST", {}); } catch (err) { /* already logged out */ }
-  showLogin();
-});
-
-// ---------- start ----------
-$("book-date").min = today();
-$("diag-date").min = today();
-$("admit-date").value = today();
-
-(async function init() {
-  try {
-    const who = await api("/api/me");
-    if (who.role) showApp(who); else showLogin();
-  } catch (err) {
-    showLogin();
-    showMessage("Cannot reach the server. Is the C backend running?", "error");
-  }
-})();
