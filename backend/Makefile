@@ -1,11 +1,13 @@
-# Needs the SQLite dev library:
-#   Ubuntu/Codespaces:  sudo apt install libsqlite3-dev
-.RECIPEPREFIX = >
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
+LDFLAGS = -lsqlite3
 
-appointease: main.c
-> $(CC) $(CFLAGS) main.c -o appointease -lsqlite3
+all: appointease
+
+appointease: backend/main.c
+	$(CC) $(CFLAGS) backend/main.c -o appointease $(LDFLAGS)
 
 clean:
-> rm -f appointease appointease.db
+	rm -f appointease appointease.exe backend/appointease backend/appointease.exe *.db
+
+.PHONY: all clean
