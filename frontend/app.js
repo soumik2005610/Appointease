@@ -174,23 +174,23 @@ async function handleBookOPD(e) {
  Status       : Confirmed
 ===================================================`;
 
-        // Direct Download Link
-        const blob = new Blob([letterText], { type: 'text/plain' });
+        // Direct Text Blob Download
+        const blob = new Blob([letterText], { type: 'text/plain;charset=utf-8' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = `OPD_Slip_${patientText.replace(/\s+/g, '_')}.txt`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
 
-        // Screen Modal Visual Confirmation (No extra tab opening)
         alert("APPOINTMENT CONFIRMED!\n\n" + letterText);
-
         loadOPDTab();
     } else {
         alert(res?.error || "Booking failed! Slot might already be booked.");
     }
 }
+
 
     
 
@@ -246,59 +246,58 @@ async function loadServiceSlotAvailability() {
         select.appendChild(opt);
     });
 }
-
-async function handleBookService(e) {
+async function handleBookOPD(e) {
     e.preventDefault();
-    const svcSelect = document.getElementById('svc-service');
-    const patSelect = document.getElementById('svc-patient');
-    const dateVal = document.getElementById('svc-date').value;
-    const timeVal = document.getElementById('svc-time').value;
+    const docSelect = document.getElementById('opd-doctor');
+    const patSelect = document.getElementById('opd-patient');
+    const dateVal = document.getElementById('opd-date').value;
+    const timeVal = document.getElementById('opd-time').value;
 
-    if (!svcSelect.value || !patSelect.value || !dateVal || !timeVal) {
-        alert("Please select Service, Patient, Date and Time!");
+    if (!docSelect.value || !patSelect.value || !dateVal || !timeVal) {
+        alert("Please select Doctor, Patient, Date and Time!");
         return;
     }
 
-    const res = await apiFetch('service-bookings', 'POST', {
-        service_id: svcSelect.value,
+    const res = await apiFetch('appointments', 'POST', {
+        doctor_id: docSelect.value,
         patient_id: patSelect.value,
         date: dateVal,
         time: timeVal
     });
 
     if (res && !res.error) {
-        const patientName = patSelect.options[patSelect.selectedIndex]?.text || "Patient";
-        const serviceName = svcSelect.options[svcSelect.selectedIndex]?.text || "Diagnostic Service";
+        const doctorText = docSelect.options[docSelect.selectedIndex]?.text || "Doctor";
+        const patientText = patSelect.options[patSelect.selectedIndex]?.text || "Patient";
 
         const letterText = 
 `===================================================
          APPOINTEASE APPOINTMENT CONFIRMATION      
 ===================================================
 
- Patient Name : ${patientName}
- Service      : ${serviceName}
+ Patient Name : ${patientText}
+ Doctor       : ${doctorText}
  Date & Time  : ${dateVal} at ${timeVal}
 ---------------------------------------------------
  Status       : Confirmed
 ===================================================`;
 
-        // Direct Download
-        const blob = new Blob([letterText], { type: 'text/plain' });
+        // Direct Text Blob Download
+        const blob = new Blob([letterText], { type: 'text/plain;charset=utf-8' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `Service_Slip_${patientName.replace(/\s+/g, '_')}.txt`;
+        link.download = `OPD_Slip_${patientText.replace(/\s+/g, '_')}.txt`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
 
-        // Screen Alert
-        alert("SERVICE BOOKING CONFIRMED!\n\n" + letterText);
-
-        loadServicesTab();
+        alert("APPOINTMENT CONFIRMED!\n\n" + letterText);
+        loadOPDTab();
     } else {
         alert(res?.error || "Booking failed! Slot might already be booked.");
     }
 }
+
 
 
 async function loadServiceBookings() {
