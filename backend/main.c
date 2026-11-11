@@ -337,7 +337,13 @@ static void get_dashboard(int fd) {
 }
 
 static void serve_static(int fd, const char *path) {
-    const char *fpath = (!strcmp(path, "/") || !*path) ? "index.html" : (path + 1);
+    char fpath[512];
+    if (!strcmp(path, "/") || !*path) {
+        snprintf(fpath, sizeof(fpath), "frontend/index.html");
+    } else {
+        snprintf(fpath, sizeof(fpath), "frontend/%s", path[0] == '/' ? path + 1 : path);
+    }
+
     FILE *f = fopen(fpath, "rb");
     if (!f) return send_error(fd, 404, "Not found.");
     fseek(f, 0, SEEK_END);
