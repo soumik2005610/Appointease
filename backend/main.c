@@ -195,7 +195,7 @@ static void generate_appointment_letter(const char *doctor_or_service, const cha
     fflush(stdout);
 }
 
-}
+
 
 static void book_slot(int fd, const char *q, const char *body, int is_service) {
     char rid[32], pid[32], date[32], time[32];
