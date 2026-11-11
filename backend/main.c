@@ -171,21 +171,30 @@ static void delete_person(int fd, const char *q, const char *body, int is_doc) {
 }
 
 static void generate_appointment_letter(const char *doctor_or_service, const char *patient, const char *date, const char *time, int is_service) {
-    printf("\n======================================================\n");
-    printf("         APPOINTEASE APPOINTMENT CONFIRMATION         \n");
-    printf("======================================================\n");
-    printf(" Booking Type   : %s\n", is_service ? "Diagnostic Service" : "OPD Doctor Consult");
-    printf("------------------------------------------------------\n");
-    printf(" Patient Name   : %s\n", patient);
-    printf(" Resource/Doctor: %s\n", doctor_or_service);
-    printf(" Date & Time    : %s at %s\n", date, time);
-    printf("------------------------------------------------------\n");
-    printf(" MESSAGE TO PATIENT:\n");
-    printf(" Dear %s, your appointment for %s on %s at %s has been confirmed.\n", patient, doctor_or_service, date, time);
-    printf("\n MESSAGE TO %s:\n", is_service ? "DEPARTMENT" : "DOCTOR");
-    printf(" Notice: Patient %s is scheduled for %s at %s.\n", patient, date, time);
-    printf("======================================================\n\n");
+    char filename[128];
+    // Patient-er naam diye unique file name toiri hobe
+    snprintf(filename, sizeof(filename), "opd_letter_%s.txt", patient);
+
+    FILE *f = fopen(filename, "w");
+    if (f == NULL) return;
+
+    fprintf(f, "===================================================\n");
+    fprintf(f, "         APPOINTEASE APPOINTMENT CONFIRMATION      \n");
+    fprintf(f, "===================================================\n\n");
+    fprintf(f, " Booking Type : %s\n", is_service ? "Diagnostic Service" : "OPD Doctor Consult");
+    fprintf(f, " Patient Name : %s\n", patient);
+    fprintf(f, " %s : %s\n", is_service ? "Resource/Department" : "Doctor", doctor_or_service);
+    fprintf(f, " Date & Time  : %s at %s\n", date, time);
+    fprintf(f, "\n---------------------------------------------------\n");
+    fprintf(f, " Dear %s, your appointment for %s on %s at %s has been confirmed.\n", patient, doctor_or_service, date, time);
+    fprintf(f, " Please bring this confirmation slip with you.\n");
+    fprintf(f, "===================================================\n");
+
+    fclose(f);
+    printf("Letter file generated successfully: %s\n", filename);
     fflush(stdout);
+}
+
 }
 
 static void book_slot(int fd, const char *q, const char *body, int is_service) {
