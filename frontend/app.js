@@ -141,14 +141,44 @@ async function loadDoctorSlotAvailability() {
 
 async function handleBookOPD(e) {
     e.preventDefault();
+    const docSelect = document.getElementById('opd-doctor');
+    const patSelect = document.getElementById('opd-patient');
+    const dateVal = document.getElementById('opd-date').value;
+    const timeVal = document.getElementById('opd-time').value;
+
     const res = await apiFetch('appointments', 'POST', {
-        doctor_id: document.getElementById('opd-doctor').value,
-        patient_id: document.getElementById('opd-patient').value,
-        date: document.getElementById('opd-date').value,
-        time: document.getElementById('opd-time').value
+        doctor_id: docSelect.value,
+        patient_id: patSelect.value,
+        date: dateVal,
+        time: timeVal
     });
+
     if (res) {
-        showAlert("OPD Appointment Booked Successfully!");
+        const doctorText = docSelect.options[docSelect.selectedIndex]?.text || res.doctor || "Doctor";
+        const patientText = patSelect.options[patSelect.selectedIndex]?.text || res.patient || "Patient";
+
+        const letterText = 
+`===================================================
+         APPOINTEASE APPOINTMENT CONFIRMATION      
+===================================================
+
+ Patient Name : ${patientText}
+ Doctor       : ${doctorText}
+ Date & Time  : ${dateVal} at ${timeVal}
+---------------------------------------------------
+ Status       : Confirmed
+===================================================`;
+
+        const blob = new Blob([letterText], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `OPD_Slip_${patientText.replace(/\s+/g, '_')}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+
+        showAlert("OPD Appointment Booked & Slip Downloaded!");
         loadOPDTab();
     }
 }
@@ -208,40 +238,46 @@ async function loadServiceSlotAvailability() {
 
 async function handleBookService(e) {
     e.preventDefault();
+    const svcSelect = document.getElementById('svc-service');
+    const patSelect = document.getElementById('svc-patient');
+    const dateVal = document.getElementById('svc-date').value;
+    const timeVal = document.getElementById('svc-time').value;
+
     const res = await apiFetch('service-bookings', 'POST', {
-        service_id: document.getElementById('svc-service').value,
-        patient_id: document.getElementById('svc-patient').value,
-        date: document.getElementById('svc-date').value,
-        time: document.getElementById('svc-time').value
+        service_id: svcSelect.value,
+        patient_id: patSelect.value,
+        date: dateVal,
+        time: timeVal
     });
-        if (res && res.success) {
-        // 1. Backend theke asa data diye text build koro
+
+    if (res) {
+        const patientName = patSelect.options[patSelect.selectedIndex]?.text || res.patient || "Patient";
+        const serviceName = svcSelect.options[svcSelect.selectedIndex]?.text || res.service_name || res.doctor || "Diagnostic Service";
+
         const letterText = 
 `===================================================
          APPOINTEASE APPOINTMENT CONFIRMATION      
 ===================================================
 
- Patient Name : ${res.patient}
- Doctor/Service: ${res.doctor}
- Date & Time  : ${res.date} at ${res.time}
+ Patient Name : ${patientName}
+ Service      : ${serviceName}
+ Date & Time  : ${dateVal} at ${timeVal}
 ---------------------------------------------------
  Status       : Confirmed
 ===================================================`;
 
-        // 2. Safari automatic file download trigger
         const blob = new Blob([letterText], { type: 'text/plain' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `OPD_Slip_${res.patient.replace(/\s+/g, '_')}.txt`;
+        link.download = `Service_Slip_${patientName.replace(/\s+/g, '_')}.txt`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
 
-        showAlert("Slot Booked & Letter Downloaded!");
-        loadServicesTab(); // or loadOPDTab()
+        showAlert("Service Slot Booked & Slip Downloaded!");
+        loadServicesTab();
     }
-
 }
 
 async function loadServiceBookings() {
