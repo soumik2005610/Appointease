@@ -146,12 +146,52 @@ async function handleBookOPD(e) {
     const dateVal = document.getElementById('opd-date').value;
     const timeVal = document.getElementById('opd-time').value;
 
+    if (!docSelect.value || !patSelect.value || !dateVal || !timeVal) {
+        alert("Please select Doctor, Patient, Date and Time!");
+        return;
+    }
+
     const res = await apiFetch('appointments', 'POST', {
         doctor_id: docSelect.value,
         patient_id: patSelect.value,
         date: dateVal,
         time: timeVal
     });
+
+    if (res) {
+        const doctorText = docSelect.options[docSelect.selectedIndex]?.text || "Doctor";
+        const patientText = patSelect.options[patSelect.selectedIndex]?.text || "Patient";
+
+        const letterText = 
+`===================================================
+         APPOINTEASE APPOINTMENT CONFIRMATION      
+===================================================
+
+ Patient Name : ${patientText}
+ Doctor       : ${doctorText}
+ Date & Time  : ${dateVal} at ${timeVal}
+---------------------------------------------------
+ Status       : Confirmed
+===================================================`;
+
+        // 1. Direct Download
+        const blob = new Blob([letterText], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `OPD_Slip_${patientText.replace(/\s+/g, '_')}.txt`;
+        document.body.appendChild(link);
+        link.click();
+
+        // 2. Mobile/iPad Fallback (Open text directly in new window)
+        const win = window.open("", "_blank");
+        if (win) {
+            win.document.write(`<pre style="font-size:16px; font-family:monospace; padding:20px;">${letterText}</pre>`);
+        }
+
+        showAlert("OPD Appointment Booked Successfully!");
+        loadOPDTab();
+    }
+}
 
     if (res) {
         const doctorText = docSelect.options[docSelect.selectedIndex]?.text || res.doctor || "Doctor";
