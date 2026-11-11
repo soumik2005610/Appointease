@@ -192,35 +192,7 @@ async function handleBookOPD(e) {
     }
 }
 
-    if (res) {
-        const doctorText = docSelect.options[docSelect.selectedIndex]?.text || res.doctor || "Doctor";
-        const patientText = patSelect.options[patSelect.selectedIndex]?.text || res.patient || "Patient";
-
-        const letterText = 
-`===================================================
-         APPOINTEASE APPOINTMENT CONFIRMATION      
-===================================================
-
- Patient Name : ${patientText}
- Doctor       : ${doctorText}
- Date & Time  : ${dateVal} at ${timeVal}
----------------------------------------------------
- Status       : Confirmed
-===================================================`;
-
-        const blob = new Blob([letterText], { type: 'text/plain' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `OPD_Slip_${patientText.replace(/\s+/g, '_')}.txt`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-
-        showAlert("OPD Appointment Booked & Slip Downloaded!");
-        loadOPDTab();
-    }
-}
+    
 
 async function loadOPDAppointments() {
     const list = await apiFetch('appointments');
