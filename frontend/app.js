@@ -214,10 +214,34 @@ async function handleBookService(e) {
         date: document.getElementById('svc-date').value,
         time: document.getElementById('svc-time').value
     });
-    if (res) {
-        showAlert("Service Slot Booked!");
-        loadServicesTab();
+        if (res && res.success) {
+        // 1. Backend theke asa data diye text build koro
+        const letterText = 
+`===================================================
+         APPOINTEASE APPOINTMENT CONFIRMATION      
+===================================================
+
+ Patient Name : ${res.patient}
+ Doctor/Service: ${res.doctor}
+ Date & Time  : ${res.date} at ${res.time}
+---------------------------------------------------
+ Status       : Confirmed
+===================================================`;
+
+        // 2. Safari automatic file download trigger
+        const blob = new Blob([letterText], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `OPD_Slip_${res.patient.replace(/\s+/g, '_')}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+
+        showAlert("Slot Booked & Letter Downloaded!");
+        loadServicesTab(); // or loadOPDTab()
     }
+
 }
 
 async function loadServiceBookings() {
