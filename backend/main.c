@@ -234,8 +234,17 @@ static void book_slot(int fd, const char *q, const char *body, int is_service) {
     sqlite3_finalize(st_name);
 
     generate_appointment_letter(rname, pname, date, time, is_service);
-    send_new_id(fd);
+    
+
+    
+    char resp[1024];
+    snprintf(resp, sizeof(resp), 
+        "{\"success\":true, \"patient\":\"%s\", \"doctor\":\"%s\", \"date\":\"%s\", \"time\":\"%s\"}",
+        pname, rname, date, time);
+    send_json(fd, resp);
 }
+
+    
 
 static void cancel_slot(int fd, const char *q, const char *body, int is_service) {
     char idstr[32];
